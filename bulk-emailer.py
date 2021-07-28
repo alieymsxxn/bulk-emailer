@@ -92,8 +92,6 @@ class BulkEmailer:
 
     def establish_connection(self):
         # add try except
-        print(self.params['smtp_port'])
-        print(self.params['smtp_host'])
         conn = smtplib.SMTP(host=self.params['smtp_host'], port=self.params['smtp_port'])
         conn.starttls()
         conn.login(user=self.params['sender_email'], password=self.params['sender_password'])
