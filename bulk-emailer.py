@@ -10,46 +10,62 @@ from email.mime.multipart import MIMEMultipart
 
 
 def access_params_dir():
-        def create_ini_file(file_path):
-            config = configparser.ConfigParser()
-            config['SYS_CONFIG'] = {
-                'number_of_chunks': '',
-                'schedule': '',
-            }
-            config['EMAIL_CONFIG'] = {
-                'target_emails' : 'aliey8998@gmail.com,mohsinalisep@gmail.com',
-                'sender_name' : 'Mohsin Ali',
-                'sender_email' : 'aliey8998@gmail.com',
-                'sender_password' : 'aliey8998',
-                'smtp_port' : '587',
-                'smtp_host' : 'smtp.gmail.com',
-                'test_recipient_email' : 'mohsinalisep@gmail.com',
-                'test_recipient_name' : 'Mohsin Ali Test',
-                'content' : 'html',
-                'content_path' : 'index.html'
-            }
-
-            with open(file_path, 'w') as configfile:
-                config.write(configfile)       
         def mk_params_dir():
+            def create_ini_file(file_path):
+                # initialize a config object
+                config = configparser.ConfigParser()
+                # config['SYS_CONFIG'] = {
+                #     'number_of_chunks': '',
+                #     'schedule': '',
+                # }
+                # define dict for the config file
+                config['EMAIL_CONFIG'] = {
+                    'target_emails'         : 'person1@somemail.com,person2@somemailmail.com',
+                    'sender_name'           : 'Some Person',
+                    'sender_email'          : 'sender@mymail.com',
+                    'sender_password'       : '12345678',
+                    'smtp_port'             : '587',
+                    'smtp_host'             : 'smtp.gmail.com',
+                    'test_recipient_email'  : 'testperson@mymail.com',
+                    'test_recipient_name'   : 'Test Person',
+                    'content_type'          : 'html',
+                    'content_filename'      : 'index.html'
+                }
+                # write to the conifg file
+                with open(file_path, 'w') as file:
+                    config.write(file)     
+                  
             # dirs
+            dirs = {}
+            # get bulk_emailer_home environment var if set
             home_dir_path = os.getenv('BULK_EMAILER_HOME')
+            # if environment var not set, get path to home dir
             home_dir_path = home_dir_path if home_dir_path else expanduser('~')
+            print(f'Home dir found at {home_dir_path}')
+            # form string of path to .bulk-emaile folder in the home dir
             home_dir_path = home_dir_path+'/.bulk-emailer'
+            dirs['home_dir'] = home_dir_path
+            # form string of  path to .bulk-emaile/templates folder in the home dir
             template_dir_path = home_dir_path+'/templates'
+            dirs['template_dir'] = template_dir_path
+            # form string of path to .bulk-emaile/logs folder in the home dir
             logs_dir_path = home_dir_path+'/logs'
+            dirs['logs_dir'] = logs_dir_path
             
-            # params file
+           # form string of path to .bulk-emaile/params.config file in the home dir
             params_file_path = home_dir_path+'/params.config'
+            dirs['params_file'] = params_file_path
 
+            # create all the directories inside home directory if they don't exist
             if not os.path.isdir(home_dir_path) : os.mkdir(home_dir_path) 
             if not os.path.isdir(template_dir_path) : os.mkdir(template_dir_path)
             if not os.path.isdir(logs_dir_path) : os.mkdir(logs_dir_path)
+            # create the config file if it does not exist
             if not os.path.exists(params_file_path): create_ini_file(params_file_path)
 
-            return home_dir_path
-        home_dir_path = mk_params_dir()
-        return home_dir_path
+            return dirs
+        dirs = mk_params_dir()
+        return dirs
                 
 
 def validate_params(params):
@@ -78,20 +94,23 @@ def validate_params(params):
 
 
 def get_params(path_to_params=None):
-    # add validations
-    home_dir_path = access_params_dir()
-    print(f'Home dir found at {home_dir_path}')
+    # create or access all the dirs and get the paths in a dict
+    paths_dir = access_params_dir()
+
+
     parser = configparser.ConfigParser()
-    parser.read(home_dir_path+'/params.config')
-    params = dict(parser.items('EMAIL_CONFIG')+parser.items('SYS_CONFIG'))
-    return validate_params(params), home_dir_path
+    parser.read(paths_dir['home_dir']+'/params.config')
+    params = dict(parser.items('EMAIL_CONFIG'))
+    validate_params(params)
+    
+    # return validate_params(params), home_dir_path
 
 
 class BulkEmailer:
     _retry = 0
     def __init__(self):
-        self.params, self.home_dir_path = get_params()
-        self.conn = self.establish_connection()
+        get_params()
+        # self.conn = self.establish_connection()
     
     def reconnect(self):
         self._retry = self._retry + 1
@@ -101,7 +120,11 @@ class BulkEmailer:
             self._retry = 0
         print(f'INFO:reconnect:Attempting to reconnect {self._retry}.')
         self.conn = self.establish_connection()
-
+    
+    def close(self):
+        self.conn.quit()
+        print('INFO:close:Connection has been closed.')
+    
     def establish_connection(self):
         try:
             conn = smtplib.SMTP(host=self.params['smtp_host'], port=self.params['smtp_port'])
@@ -139,7 +162,7 @@ class BulkEmailer:
             msg['Subject']='bulk_emailer'
             
             try:
-                self.conn.send_message(msg)
+                # self.conn.send_message(msg)
                 print('SUCCESS:send_email:Message sent to', email)
             except smtplib.SMTPSenderRefused as e:
                 print('ERROR:send_email:Connection refused by the smtp host.')
@@ -150,11 +173,13 @@ class BulkEmailer:
             except Exception as e:
                 print('An unknown error has occured.')
                 print(e)
-                exit(-1)
-            
+                exit()
+        print('Script ended.')
+        self.close()
+
 
 
 if __name__ == '__main__':
     be = BulkEmailer()
-    be.send_email()
+    # be.send_email()
     
